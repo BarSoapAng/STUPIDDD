@@ -6,7 +6,7 @@ import pygame
 
 
 class AudioEngine:
-    def __init__(self, audio_path: str = "assets/mlg_audio.mp3") -> None:
+    def __init__(self, audio_path: str = "assets/MLG_Audio.mp3") -> None:
         self.audio_path = Path(audio_path)
         self.sound: pygame.mixer.Sound | None = None
         self.audio_enabled = False
@@ -33,7 +33,7 @@ class AudioEngine:
             self.sound = pygame.mixer.Sound(str(resolved_path))
             self.audio_path = resolved_path
         except FileNotFoundError:
-            print("[audio] mlg_audio.mp3 not found — audio disabled")
+            print("[audio] MLG_Audio.mp3 not found — audio disabled")
         except pygame.error as exc:
             print(f"[audio] failed to load audio ({exc}) — audio disabled")
 
@@ -45,7 +45,7 @@ class AudioEngine:
         if not assets_dir.exists():
             return None
 
-        for pattern in ("mlg_audio.mp3", "*.mp3", "*.wav", "*.ogg"):
+        for pattern in ("MLG_Audio.mp3", "*.mp3", "*.wav", "*.ogg"):
             matches = sorted(assets_dir.glob(pattern))
             if matches:
                 return matches[0]
