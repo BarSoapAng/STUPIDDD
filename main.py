@@ -17,7 +17,7 @@ def main() -> None:
 
     pygame.init()
 
-    pose = PoseEngine()
+    pose = PoseEngine(debug=True, debug_every=1)
     fx = FXEngine()
     audio = AudioEngine()
     exporter = Exporter()

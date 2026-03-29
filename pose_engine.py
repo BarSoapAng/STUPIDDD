@@ -35,8 +35,16 @@ class PoseEngine:
     )
     _OPTIONAL_LANDMARKS = ("LEFT_EYE", "RIGHT_EYE")
 
-    def __init__(self, task_model_path: str = "assets/pose_landmarker_heavy.task") -> None:
+    def __init__(
+        self,
+        task_model_path: str = "assets/pose_landmarker_heavy.task",
+        debug: bool = False,
+        debug_every: int = 1,
+    ) -> None:
         self._task_model_path = Path(task_model_path)
+        self.debug = debug
+        self.debug_every = max(1, debug_every)
+        self._frame_counter = 0
         self._task_model_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not self._task_model_path.exists():
@@ -65,11 +73,13 @@ class PoseEngine:
         return self.classify(bgr_frame)
 
     def classify(self, bgr_frame: np.ndarray) -> PoseResult:
+        self._frame_counter += 1
         frame_h, frame_w = bgr_frame.shape[:2]
         rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         result = self._task_pose.detect(mp_image)
         if not result.pose_landmarks:
+            self._debug("no pose landmarks detected", force=True)
             return PoseResult(False, {}, None, None)
 
         landmarks = result.pose_landmarks[0]
@@ -81,28 +91,62 @@ class PoseEngine:
         )
         nose_px = pixel_landmarks.get("NOSE")
 
-        if not self._visibility_guard_passed(
+        visibility_ok, visibility_info = self._visibility_guard_passed(
             landmark_for_name=lambda name: landmarks[self._task_pose_landmark_enum[name].value],
-        ):
+        )
+        self._debug(
+            "visibility "
+            + ", ".join(
+                f"{name}:exists={details['exists']} vis={details['visibility']:.2f}"
+                for name, details in visibility_info.items()
+            )
+            + f" -> guard={visibility_ok}",
+            force=not visibility_ok,
+        )
+        if not visibility_ok:
             return PoseResult(False, pixel_landmarks, None, nose_px)
 
-        left_ok, left_angle = self._check_orientation(
+        left_diag = self._check_orientation(
             landmark_for_name=lambda name: landmarks[self._task_pose_landmark_enum[name].value],
             extended_side="LEFT",
         )
-        right_ok, right_angle = self._check_orientation(
+        right_diag = self._check_orientation(
             landmark_for_name=lambda name: landmarks[self._task_pose_landmark_enum[name].value],
             extended_side="RIGHT",
         )
 
-        return self._build_pose_result_from_orientation_checks(
-            left_ok=left_ok,
-            right_ok=right_ok,
-            left_angle=left_angle,
-            right_angle=right_angle,
+        pose_result = self._build_pose_result_from_orientation_checks(
+            left_ok=bool(left_diag["ok"]),
+            right_ok=bool(right_diag["ok"]),
+            left_angle=float(left_diag["angle"]),
+            right_angle=float(right_diag["angle"]),
             pixel_landmarks=pixel_landmarks,
             nose_px=nose_px,
         )
+        self._debug(
+            (
+                "L(angle={:.1f}, straight={}, wrist_up={}, tuck={:.3f}, face_tucked={}, ok={}) | "
+                "R(angle={:.1f}, straight={}, wrist_up={}, tuck={:.3f}, face_tucked={}, ok={}) | "
+                "dab={} side={}"
+            ).format(
+                float(left_diag["angle"]),
+                bool(left_diag["straight"]),
+                bool(left_diag["wrist_raised"]),
+                float(left_diag["tuck_dist"]),
+                bool(left_diag["face_tucked"]),
+                bool(left_diag["ok"]),
+                float(right_diag["angle"]),
+                bool(right_diag["straight"]),
+                bool(right_diag["wrist_raised"]),
+                float(right_diag["tuck_dist"]),
+                bool(right_diag["face_tucked"]),
+                bool(right_diag["ok"]),
+                pose_result.is_dab,
+                pose_result.extended_side,
+            ),
+            force=pose_result.is_dab,
+        )
+        return pose_result
 
     @staticmethod
     def _build_pose_result_from_orientation_checks(
@@ -141,15 +185,19 @@ class PoseEngine:
             output[name] = self._landmark_to_px(lm.x, lm.y, frame_w, frame_h)
         return output
 
-    def _visibility_guard_passed(self, landmark_for_name) -> bool:
+    def _visibility_guard_passed(self, landmark_for_name) -> tuple[bool, dict[str, dict[str, float | bool]]]:
+        details: dict[str, dict[str, float | bool]] = {}
+        guard_ok = True
         for name in self._REQUIRED_LANDMARKS:
             lm = landmark_for_name(name)
+            exists = lm is not None and getattr(lm, "x", None) is not None and getattr(lm, "y", None) is not None
             visibility = self._effective_visibility(lm)
-            if visibility <= 0.5:
-                return False
-        return True
+            details[name] = {"exists": exists, "visibility": visibility}
+            if not exists or visibility <= 0.5:
+                guard_ok = False
+        return guard_ok, details
 
-    def _check_orientation(self, landmark_for_name, extended_side: str) -> tuple[bool, float]:
+    def _check_orientation(self, landmark_for_name, extended_side: str) -> dict[str, float | bool]:
         tucked_side = "RIGHT" if extended_side == "LEFT" else "LEFT"
 
         ext_shoulder = landmark_for_name(f"{extended_side}_SHOULDER")
@@ -171,7 +219,14 @@ class PoseEngine:
         )
         face_tucked = tuck_dist <= 0.18
 
-        return (is_straight and wrist_raised and face_tucked), elbow_angle
+        return {
+            "ok": is_straight and wrist_raised,
+            "angle": elbow_angle,
+            "straight": is_straight,
+            "wrist_raised": wrist_raised,
+            "tuck_dist": tuck_dist,
+            "face_tucked": face_tucked,
+        }
 
     def _download_pose_task_model(self) -> None:
         try:
@@ -183,6 +238,8 @@ class PoseEngine:
 
     @staticmethod
     def _effective_visibility(landmark) -> float:
+        if landmark is None:
+            return 0.0
         visibility = getattr(landmark, "visibility", None)
         if visibility is not None:
             return float(visibility)
@@ -200,6 +257,13 @@ class PoseEngine:
     @staticmethod
     def _distance_2d(a: tuple[float, float], b: tuple[float, float]) -> float:
         return float(np.linalg.norm(np.array(a, dtype=np.float32) - np.array(b, dtype=np.float32)))
+
+    def _debug(self, message: str, force: bool = False) -> None:
+        if not self.debug:
+            return
+        if not force and (self._frame_counter % self.debug_every != 0):
+            return
+        print(f"[pose][dbg frame={self._frame_counter}] {message}")
 
     @staticmethod
     def _elbow_angle(
