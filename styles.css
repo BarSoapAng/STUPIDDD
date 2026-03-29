@@ -1,0 +1,118 @@
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: "Trebuchet MS", Verdana, sans-serif;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 32%),
+    #000;
+}
+
+#camera {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.launch-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.82)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 55%);
+  transition: opacity 180ms ease;
+}
+
+.launch-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.launch-card {
+  width: min(420px, 100%);
+  padding: 28px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 18px;
+  background: rgba(12, 12, 12, 0.9);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.launch-card h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+}
+
+.launch-copy {
+  margin: 14px 0 20px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+#startButton {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 18px;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#startButton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.launch-status {
+  min-height: 1.4em;
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .launch-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+}

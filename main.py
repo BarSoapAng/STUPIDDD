@@ -9,6 +9,26 @@ from fx_engine import FXEngine
 from pose_engine import PoseEngine
 
 
+WINDOW_NAME = "DAB DETECTOR 9000"
+
+
+def _scale_frame_to_screen(frame, screen_size: tuple[int, int]):
+    screen_w, screen_h = screen_size
+    frame_h, frame_w = frame.shape[:2]
+    if screen_w <= 0 or screen_h <= 0 or frame_w <= 0 or frame_h <= 0:
+        return frame
+
+    # Scale to cover the full screen, then crop the overflow from the center.
+    scale = max(screen_w / frame_w, screen_h / frame_h)
+    resized_w = max(screen_w, int(round(frame_w * scale)))
+    resized_h = max(screen_h, int(round(frame_h * scale)))
+    resized = cv2.resize(frame, (resized_w, resized_h), interpolation=cv2.INTER_LINEAR)
+
+    x0 = max(0, (resized_w - screen_w) // 2)
+    y0 = max(0, (resized_h - screen_h) // 2)
+    return resized[y0 : y0 + screen_h, x0 : x0 + screen_w]
+
+
 def main() -> None:
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -16,6 +36,17 @@ def main() -> None:
         return
 
     pygame.init()
+    display_info = pygame.display.Info()
+    screen_size = (
+        max(1, display_info.current_w),
+        max(1, display_info.current_h),
+    )
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, screen_size[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, screen_size[1])
+
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(WINDOW_NAME, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
     pose = PoseEngine(debug=True, debug_every=1)
     fx = FXEngine()
@@ -60,37 +91,31 @@ def main() -> None:
                     audio.stop()
                     fx.reset()
 
-            color = (0, 255, 80) if state == "DAB" else (180, 180, 180)
-            cv2.putText(
-                frame,
-                f"STATE: {state}",
-                (12, 30),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.7,
-                color,
-                2,
+            bottom_text = "[Bottom Text]"
+            font = cv2.FONT_HERSHEY_DUPLEX
+            font_scale = 0.5
+            thickness = 1
+            (text_w, text_h), baseline = cv2.getTextSize(
+                bottom_text, font, font_scale, thickness
             )
+            frame_h, frame_w = frame.shape[:2]
+            text_x = max(0, (frame_w - text_w) // 2)
+            text_y = max(text_h, frame_h - baseline - 12)
+
             cv2.putText(
                 frame,
-                f"FRAME: {dab_counter}",
-                (12, 56),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.7,
-                color,
-                1,
-            )
-            cv2.putText(
-                frame,
-                f"HOLD:  {hold_counter}",
-                (12, 80),
-                cv2.FONT_HERSHEY_DUPLEX,
-                0.5,
+                bottom_text,
+                (text_x, text_y),
+                font,
+                font_scale,
                 (120, 120, 120),
-                1,
+                thickness,
             )
 
-            cv2.imshow("DAB DETECTOR 9000", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            display_frame = _scale_frame_to_screen(frame, screen_size)
+            cv2.imshow(WINDOW_NAME, display_frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), 27):
                 break
     finally:
         cap.release()

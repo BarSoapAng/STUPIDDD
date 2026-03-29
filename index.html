@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DAB DETECTOR 9000</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <video id="camera" playsinline muted></video>
+      <canvas id="stage" aria-label="DAB DETECTOR 9000 output"></canvas>
+
+      <section id="launchOverlay" class="launch-overlay">
+        <div class="launch-card">
+          <p class="eyebrow">Browser Port</p>
+          <h1>DAB DETECTOR 9000</h1>
+          <p class="launch-copy">
+            Same fullscreen webcam UI, now in the browser.
+          </p>
+          <button id="startButton" type="button">Start Camera</button>
+          <p id="launchStatus" class="launch-status">
+            Camera permission and audio unlock happen after you start.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
