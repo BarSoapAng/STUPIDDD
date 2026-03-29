@@ -82,7 +82,15 @@ class FXEngine:
 
     def _load_mlg_sprites(self) -> list[np.ndarray]:
         sprites: list[np.ndarray] = []
-        for sprite_path in sorted(self.assets_dir.glob("mlg_sprite_*.png")):
+        sprite_paths = sorted(self.assets_dir.glob("mlg_sprite_*.png"))
+        if not sprite_paths:
+            sprite_paths = [
+                path
+                for path in sorted(self.assets_dir.glob("*.png"))
+                if path.name.lower() != "sunglasses.png"
+            ]
+
+        for sprite_path in sprite_paths:
             sprite_bgra = cv2.imread(str(sprite_path), cv2.IMREAD_UNCHANGED)
             if sprite_bgra is None:
                 continue

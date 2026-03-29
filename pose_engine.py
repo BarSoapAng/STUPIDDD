@@ -36,71 +36,35 @@ class PoseEngine:
     _OPTIONAL_LANDMARKS = ("LEFT_EYE", "RIGHT_EYE")
 
     def __init__(self, task_model_path: str = "assets/pose_landmarker_heavy.task") -> None:
-        self._backend: str = "disabled"
-        self._legacy_pose_module = None
-        self._legacy_pose = None
-        self._task_pose = None
-        self._task_pose_landmark_enum = None
         self._task_model_path = Path(task_model_path)
+        self._task_model_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if hasattr(mp, "solutions") and hasattr(mp.solutions, "pose"):
-            self._init_legacy_backend()
-        else:
-            self._init_tasks_backend()
+        if not self._task_model_path.exists():
+            self._download_pose_task_model()
+        if not self._task_model_path.exists():
+            raise RuntimeError(
+                "Pose model is missing. Expected at "
+                f"{self._task_model_path}. Download failed."
+            )
+
+        vision = mp.tasks.vision
+        options = vision.PoseLandmarkerOptions(
+            base_options=mp.tasks.BaseOptions(model_asset_path=str(self._task_model_path)),
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+            min_pose_detection_confidence=0.6,
+            min_pose_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
+            output_segmentation_masks=False,
+        )
+        self._task_pose = vision.PoseLandmarker.create_from_options(options)
+        self._task_pose_landmark_enum = vision.PoseLandmark
+        print("[pose] Backend: mediapipe tasks PoseLandmarker")
 
     def classify_frame(self, bgr_frame: np.ndarray) -> PoseResult:
         return self.classify(bgr_frame)
 
     def classify(self, bgr_frame: np.ndarray) -> PoseResult:
-        if self._backend == "disabled":
-            return PoseResult(False, {}, None, None)
-
-        if self._backend == "legacy":
-            return self._classify_with_legacy(bgr_frame)
-        return self._classify_with_tasks(bgr_frame)
-
-    def _classify_with_legacy(self, bgr_frame: np.ndarray) -> PoseResult:
-        frame_h, frame_w = bgr_frame.shape[:2]
-        rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-        result = self._legacy_pose.process(rgb_frame)
-
-        if not result.pose_landmarks:
-            return PoseResult(False, {}, None, None)
-
-        landmarks = result.pose_landmarks.landmark
-        pixel_landmarks = self._to_pixel_landmarks(
-            landmarks=landmarks,
-            frame_w=frame_w,
-            frame_h=frame_h,
-            index_for_name=lambda name: self._legacy_pose_module.PoseLandmark[name].value,
-        )
-        nose_px = pixel_landmarks.get("NOSE")
-
-        if not self._visibility_guard_passed(
-            landmarks=landmarks,
-            landmark_for_name=lambda name: landmarks[self._legacy_pose_module.PoseLandmark[name].value],
-        ):
-            return PoseResult(False, pixel_landmarks, None, nose_px)
-
-        left_ok, left_angle = self._check_orientation(
-            landmark_for_name=lambda name: landmarks[self._legacy_pose_module.PoseLandmark[name].value],
-            extended_side="LEFT",
-        )
-        right_ok, right_angle = self._check_orientation(
-            landmark_for_name=lambda name: landmarks[self._legacy_pose_module.PoseLandmark[name].value],
-            extended_side="RIGHT",
-        )
-
-        return self._build_pose_result_from_orientation_checks(
-            left_ok=left_ok,
-            right_ok=right_ok,
-            left_angle=left_angle,
-            right_angle=right_angle,
-            pixel_landmarks=pixel_landmarks,
-            nose_px=nose_px,
-        )
-
-    def _classify_with_tasks(self, bgr_frame: np.ndarray) -> PoseResult:
         frame_h, frame_w = bgr_frame.shape[:2]
         rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -118,7 +82,6 @@ class PoseEngine:
         nose_px = pixel_landmarks.get("NOSE")
 
         if not self._visibility_guard_passed(
-            landmarks=landmarks,
             landmark_for_name=lambda name: landmarks[self._task_pose_landmark_enum[name].value],
         ):
             return PoseResult(False, pixel_landmarks, None, nose_px)
@@ -178,7 +141,7 @@ class PoseEngine:
             output[name] = self._landmark_to_px(lm.x, lm.y, frame_w, frame_h)
         return output
 
-    def _visibility_guard_passed(self, landmarks: list, landmark_for_name) -> bool:
+    def _visibility_guard_passed(self, landmark_for_name) -> bool:
         for name in self._REQUIRED_LANDMARKS:
             lm = landmark_for_name(name)
             visibility = self._effective_visibility(lm)
@@ -209,44 +172,6 @@ class PoseEngine:
         face_tucked = tuck_dist <= 0.18
 
         return (is_straight and wrist_raised and face_tucked), elbow_angle
-
-    def _init_legacy_backend(self) -> None:
-        self._legacy_pose_module = mp.solutions.pose
-        self._legacy_pose = self._legacy_pose_module.Pose(
-            min_detection_confidence=0.6,
-            min_tracking_confidence=0.5,
-        )
-        self._backend = "legacy"
-        print("[pose] Backend: mediapipe legacy solutions")
-
-    def _init_tasks_backend(self) -> None:
-        self._task_model_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self._task_model_path.exists():
-            self._download_pose_task_model()
-
-        if not self._task_model_path.exists():
-            print("[pose] Pose model is missing. Dab detection disabled.")
-            self._backend = "disabled"
-            return
-
-        try:
-            vision = mp.tasks.vision
-            options = vision.PoseLandmarkerOptions(
-                base_options=mp.tasks.BaseOptions(model_asset_path=str(self._task_model_path)),
-                running_mode=vision.RunningMode.IMAGE,
-                num_poses=1,
-                min_pose_detection_confidence=0.6,
-                min_pose_presence_confidence=0.5,
-                min_tracking_confidence=0.5,
-                output_segmentation_masks=False,
-            )
-            self._task_pose = vision.PoseLandmarker.create_from_options(options)
-            self._task_pose_landmark_enum = vision.PoseLandmark
-            self._backend = "tasks"
-            print("[pose] Backend: mediapipe tasks PoseLandmarker")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[pose] Failed to initialize PoseLandmarker ({exc}). Dab detection disabled.")
-            self._backend = "disabled"
 
     def _download_pose_task_model(self) -> None:
         try:
@@ -282,7 +207,6 @@ class PoseEngine:
         elbow: tuple[float, float],
         wrist: tuple[float, float],
     ) -> float:
-        # Elbow-centered vectors produce an interior angle near 180 deg for a straight arm.
         vec_a = np.array([shoulder[0] - elbow[0], shoulder[1] - elbow[1]], dtype=np.float32)
         vec_b = np.array([wrist[0] - elbow[0], wrist[1] - elbow[1]], dtype=np.float32)
 
