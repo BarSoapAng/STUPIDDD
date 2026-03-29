@@ -1,0 +1,11 @@
+.git
+.venv
+.uv-cache
+__pycache__
+*.py
+*.pyc
+*.toml
+uv.lock
+.python-version
+dab_*.jpg
+Testing Computer Vision Stuff 29.03.2026.py

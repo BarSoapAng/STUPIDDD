@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
+import numpy as np
 import pygame
+from PIL import Image, ImageDraw, ImageFont
 
 from audio_engine import AudioEngine
 from exporter import Exporter
@@ -10,6 +14,7 @@ from pose_engine import PoseEngine
 
 
 WINDOW_NAME = "DAB DETECTOR 9000"
+IMPACT_FONT_PATH = Path(r"C:\Windows\Fonts\impact.ttf")
 
 
 def _scale_frame_to_screen(frame, screen_size: tuple[int, int]):
@@ -27,6 +32,35 @@ def _scale_frame_to_screen(frame, screen_size: tuple[int, int]):
     x0 = max(0, (resized_w - screen_w) // 2)
     y0 = max(0, (resized_h - screen_h) // 2)
     return resized[y0 : y0 + screen_h, x0 : x0 + screen_w]
+
+
+def _draw_bottom_text(frame, text: str) -> None:
+    frame_h, frame_w = frame.shape[:2]
+    font_size = max(24, frame_w // 12)
+
+    try:
+        font = ImageFont.truetype(str(IMPACT_FONT_PATH), font_size)
+    except OSError:
+        font = ImageFont.load_default()
+
+    image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(image)
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    text_w = right - left
+    text_h = bottom - top
+    text_x = max(0, (frame_w - text_w) // 2)
+    text_y = max(0, frame_h - text_h - 50)
+    stroke_width = max(2, font_size // 18)
+
+    draw.text(
+        (text_x, text_y),
+        text,
+        font=font,
+        fill=(255, 255, 255),
+        stroke_width=stroke_width,
+        stroke_fill=(0, 0, 0),
+    )
+    frame[:] = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
 
 def main() -> None:
@@ -91,26 +125,7 @@ def main() -> None:
                     audio.stop()
                     fx.reset()
 
-            bottom_text = "[Bottom Text]"
-            font = cv2.FONT_HERSHEY_DUPLEX
-            font_scale = 0.5
-            thickness = 1
-            (text_w, text_h), baseline = cv2.getTextSize(
-                bottom_text, font, font_scale, thickness
-            )
-            frame_h, frame_w = frame.shape[:2]
-            text_x = max(0, (frame_w - text_w) // 2)
-            text_y = max(text_h, frame_h - baseline - 12)
-
-            cv2.putText(
-                frame,
-                bottom_text,
-                (text_x, text_y),
-                font,
-                font_scale,
-                (120, 120, 120),
-                thickness,
-            )
+            _draw_bottom_text(frame, "[Bottom Text]")
 
             display_frame = _scale_frame_to_screen(frame, screen_size)
             cv2.imshow(WINDOW_NAME, display_frame)
