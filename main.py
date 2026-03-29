@@ -38,7 +38,7 @@ def main() -> None:
             if state == "IDLE":
                 if pose_result.is_dab:
                     hold_counter += 1
-                    if hold_counter >= 8:
+                    if hold_counter >= 2:
                         state = "DAB"
                         dab_counter = 0
                         exporter.reset()
