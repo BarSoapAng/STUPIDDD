@@ -125,21 +125,17 @@ class PoseEngine:
         )
         self._debug(
             (
-                "L(angle={:.1f}, straight={}, wrist_up={}, tuck={:.3f}, face_tucked={}, ok={}) | "
-                "R(angle={:.1f}, straight={}, wrist_up={}, tuck={:.3f}, face_tucked={}, ok={}) | "
+                "L(angle={:.1f}, straight={}, wrist_up={}, ok={}) | "
+                "R(angle={:.1f}, straight={}, wrist_up={}, ok={}) | "
                 "dab={} side={}"
             ).format(
                 float(left_diag["angle"]),
                 bool(left_diag["straight"]),
                 bool(left_diag["wrist_raised"]),
-                float(left_diag["tuck_dist"]),
-                bool(left_diag["face_tucked"]),
                 bool(left_diag["ok"]),
                 float(right_diag["angle"]),
                 bool(right_diag["straight"]),
                 bool(right_diag["wrist_raised"]),
-                float(right_diag["tuck_dist"]),
-                bool(right_diag["face_tucked"]),
                 bool(right_diag["ok"]),
                 pose_result.is_dab,
                 pose_result.extended_side,
@@ -198,13 +194,9 @@ class PoseEngine:
         return guard_ok, details
 
     def _check_orientation(self, landmark_for_name, extended_side: str) -> dict[str, float | bool]:
-        tucked_side = "RIGHT" if extended_side == "LEFT" else "LEFT"
-
         ext_shoulder = landmark_for_name(f"{extended_side}_SHOULDER")
         ext_elbow = landmark_for_name(f"{extended_side}_ELBOW")
         ext_wrist = landmark_for_name(f"{extended_side}_WRIST")
-        tucked_elbow = landmark_for_name(f"{tucked_side}_ELBOW")
-        nose = landmark_for_name("NOSE")
 
         elbow_angle = self._elbow_angle(
             shoulder=(ext_shoulder.x, ext_shoulder.y),
@@ -213,19 +205,12 @@ class PoseEngine:
         )
         is_straight = elbow_angle > 155.0
         wrist_raised = ext_wrist.y < ext_shoulder.y
-        tuck_dist = self._distance_2d(
-            (nose.x, nose.y),
-            (tucked_elbow.x, tucked_elbow.y),
-        )
-        face_tucked = tuck_dist <= 0.18
 
         return {
             "ok": is_straight and wrist_raised,
             "angle": elbow_angle,
             "straight": is_straight,
             "wrist_raised": wrist_raised,
-            "tuck_dist": tuck_dist,
-            "face_tucked": face_tucked,
         }
 
     def _download_pose_task_model(self) -> None:
@@ -253,10 +238,6 @@ class PoseEngine:
         px = int(np.clip(x * frame_w, 0, frame_w - 1))
         py = int(np.clip(y * frame_h, 0, frame_h - 1))
         return px, py
-
-    @staticmethod
-    def _distance_2d(a: tuple[float, float], b: tuple[float, float]) -> float:
-        return float(np.linalg.norm(np.array(a, dtype=np.float32) - np.array(b, dtype=np.float32)))
 
     def _debug(self, message: str, force: bool = False) -> None:
         if not self.debug:
