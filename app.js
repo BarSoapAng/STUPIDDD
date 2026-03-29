@@ -936,11 +936,24 @@ class BrowserDabApp {
   }
 
   drawBottomText() {
+    const frameWidth = this.renderCanvas.width;
+    const frameHeight = this.renderCanvas.height;
+    const fontSize = Math.max(24, Math.floor(frameWidth / 12));
+    const strokeWidth = Math.max(2, Math.floor(fontSize / 18));
+
     this.renderCtx.save();
-    this.renderCtx.fillStyle = "rgb(120, 120, 120)";
-    this.renderCtx.font = '16px "Trebuchet MS", Verdana, sans-serif';
-    this.renderCtx.textBaseline = "top";
-    this.renderCtx.fillText(BOTTOM_TEXT, 12, 66);
+    this.renderCtx.font = `700 ${fontSize}px Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif`;
+    this.renderCtx.textAlign = "center";
+    this.renderCtx.textBaseline = "bottom";
+    this.renderCtx.lineJoin = "round";
+    this.renderCtx.lineWidth = strokeWidth * 2;
+    this.renderCtx.strokeStyle = "rgb(0, 0, 0)";
+    this.renderCtx.fillStyle = "rgb(255, 255, 255)";
+
+    const textX = frameWidth / 2;
+    const textY = Math.max(fontSize, frameHeight - 50);
+    this.renderCtx.strokeText(BOTTOM_TEXT, textX, textY);
+    this.renderCtx.fillText(BOTTOM_TEXT, textX, textY);
     this.renderCtx.restore();
   }
 
