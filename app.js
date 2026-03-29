@@ -951,7 +951,7 @@ class BrowserDabApp {
     this.renderCtx.fillStyle = "rgb(255, 255, 255)";
 
     const textX = frameWidth / 2;
-    const textY = Math.max(fontSize, frameHeight - 50);
+    const textY = Math.max(fontSize, frameHeight - 150);
     this.renderCtx.strokeText(BOTTOM_TEXT, textX, textY);
     this.renderCtx.fillText(BOTTOM_TEXT, textX, textY);
     this.renderCtx.restore();

@@ -49,7 +49,7 @@ def _draw_bottom_text(frame, text: str) -> None:
     text_w = right - left
     text_h = bottom - top
     text_x = max(0, (frame_w - text_w) // 2)
-    text_y = max(0, frame_h - text_h - 50)
+    text_y = max(0, frame_h - text_h - 150)
     stroke_width = max(2, font_size // 18)
 
     draw.text(
